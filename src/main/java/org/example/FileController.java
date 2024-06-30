@@ -31,6 +31,9 @@ public class FileController {
     @Value("${bee.batch.id}")
     private String BEE_BATCH_ID;
 
+    @Value("${bee.default.reference}")
+    private String DEFAULT_REFERENCE;
+
     private static final Logger logger = LoggerFactory.getLogger(FileController.class);
 
     private static final CloseableHttpClient httpClient = HttpClients.createDefault();
@@ -48,9 +51,7 @@ public class FileController {
             HttpEntity entity = response.getEntity();
             if (response.getCode() == 200 || response.getCode() == 201) {
                 String body = EntityUtils.toString(entity);
-                return ResponseEntity.ok()
-                        .header("Content-type", ContentType.APPLICATION_JSON.getMimeType())
-                        .body(body);
+                return ResponseEntity.ok().header("Content-type", ContentType.APPLICATION_JSON.getMimeType()).body(body);
             } else {
                 if (entity != null) {
                     logger.error("upload file failed.entity:{}", EntityUtils.toString(entity));
@@ -68,14 +69,20 @@ public class FileController {
     @GetMapping("/download/{reference}")
     public ResponseEntity<byte[]> downloadFile(@PathVariable String reference) {
 
+        ResponseEntity<byte[]> response = getResponse(reference);
+        if (response.getBody() == null) {
+            response = getResponse(DEFAULT_REFERENCE);
+        }
+        return response;
+    }
+
+    private ResponseEntity<byte[]> getResponse(String reference) {
         HttpGet downloadFile = new HttpGet(BEE_URL + "/" + reference);
         try (CloseableHttpResponse response = httpClient.execute(downloadFile)) {
             HttpEntity entity = response.getEntity();
             if (response.getCode() == 200) {
                 byte[] fileBytes = EntityUtils.toByteArray(entity);
-                return ResponseEntity.ok()
-//                            .header("Content-Disposition", "attachment; filename=\"" + reference + "\"")
-                        .body(fileBytes);
+                return ResponseEntity.ok().body(fileBytes);
             } else {
                 if (entity != null) {
                     logger.error("download file failed.entity:{}", EntityUtils.toString(entity));
