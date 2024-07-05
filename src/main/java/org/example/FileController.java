@@ -1,6 +1,6 @@
 package org.example;
 
-import com.fasterxml.jackson.databind.util.JSONPObject;
+import com.alibaba.fastjson2.JSONObject;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -19,9 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.UUID;
 
 @RestController
@@ -37,26 +35,45 @@ public class FileController {
     @Value("${bee.default.reference}")
     private String DEFAULT_REFERENCE;
 
+    @Value("${bee.local.path}")
     private String localPath;
+
+    @Value("${bee.local.switch}")
+    private boolean switchLocal;
 
     private static final Logger logger = LoggerFactory.getLogger(FileController.class);
 
     private static final CloseableHttpClient httpClient = HttpClients.createDefault();
 
+
+    @PostMapping("/replace")
+    public ResponseEntity<String> replaceFile(@RequestParam("file") String file) throws IOException {
+        File tempFile = new File(localPath + file);
+        if (!tempFile.exists()) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("File not exist");
+        }
+        return uploadBeeFile(tempFile);
+    }
+
     @PostMapping("/upload")
-    public ResponseEntity<String> uploadFileTemp(@RequestParam("file") MultipartFile file) throws IOException {
-        String uuid = UUID.randomUUID().toString();
-        File tempFile = new File(localPath+uuid);
-        file.transferTo(tempFile);
-        return ResponseEntity.ok()
-                .header("Content-type", ContentType.APPLICATION_JSON.getMimeType())
-                .body("");
+    public ResponseEntity<String> uploadFile(@RequestParam("file") MultipartFile file) throws IOException {
+        if (switchLocal) {
+            return uploadLocalFile(file);
+        }
+        return uploadBeeFile(File.createTempFile("", file.getOriginalFilename()));
     }
 
 
-    public ResponseEntity<String> uploadFile(@RequestParam("file") MultipartFile file) throws IOException {
-        File tempFile = File.createTempFile("tmp-", file.getOriginalFilename());
+    public ResponseEntity<String> uploadLocalFile(@RequestParam("file") MultipartFile file) throws IOException {
+        String uuid = UUID.randomUUID().toString().replaceAll("-", "");
+        File tempFile = new File(localPath + uuid);
         file.transferTo(tempFile);
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("reference", uuid);
+        return ResponseEntity.ok().header("Content-type", ContentType.APPLICATION_JSON.getMimeType()).body(jsonObject.toJSONString());
+    }
+
+    private ResponseEntity<String> uploadBeeFile(File tempFile) {
         HttpPost uploadFile = new HttpPost(BEE_URL);
         FileEntity fileEntity = new FileEntity(tempFile, ContentType.APPLICATION_OCTET_STREAM);
         uploadFile.setEntity(fileEntity);
