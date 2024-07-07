@@ -1,6 +1,7 @@
 package org.example;
 
 import com.alibaba.fastjson2.JSONObject;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -10,6 +11,7 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.FileEntity;
+import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +22,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.UUID;
 
 @RestController
@@ -63,14 +69,17 @@ public class FileController {
         return uploadBeeFile(File.createTempFile("", file.getOriginalFilename()));
     }
 
-
-    public ResponseEntity<String> uploadLocalFile(@RequestParam("file") MultipartFile file) throws IOException {
-        String uuid = UUID.randomUUID().toString().replaceAll("-", "");
-        File tempFile = new File(localPath + uuid);
-        file.transferTo(tempFile);
+    public ResponseEntity<String> uploadLocalFile(MultipartFile file) throws IOException {
+        byte[] bytes = file.getBytes();
+        String md5= DigestUtils.md5Hex(bytes);
+        Path path = Paths.get(localPath + md5);
+        if(!path.toFile().exists()){
+            Files.write(path,bytes);
+        }
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("reference", uuid);
-        return ResponseEntity.ok().header("Content-type", ContentType.APPLICATION_JSON.getMimeType()).body(jsonObject.toJSONString());
+        jsonObject.put("reference", md5);
+        return ResponseEntity.ok().header("Content-type", ContentType.APPLICATION_JSON.getMimeType())
+                .body(jsonObject.toJSONString());
     }
 
     private ResponseEntity<String> uploadBeeFile(File tempFile) {
