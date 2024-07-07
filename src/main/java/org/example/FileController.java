@@ -14,9 +14,11 @@ import org.apache.hc.core5.http.io.entity.FileEntity;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -27,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
+import java.util.concurrent.locks.ReentrantLock;
 
 @RestController
 @RequestMapping("/api/files")
@@ -47,26 +50,31 @@ public class FileController {
     @Value("${bee.local.switch}")
     private boolean switchLocal;
 
+    @Autowired
+    private TemporaryStorage temporaryStorage;
+
     private static final Logger logger = LoggerFactory.getLogger(FileController.class);
 
     private static final CloseableHttpClient httpClient = HttpClients.createDefault();
 
-
     @PostMapping("/replace")
     public ResponseEntity<String> replaceFile(@RequestParam("file") String file) throws IOException {
-        File tempFile = new File(localPath + file);
-        if (!tempFile.exists()) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("File not exist");
+        String body = temporaryStorage.getValue(file, () -> uploadBeeFile(file));
+        logger.info(String.format("%s in,%s out", file,body));
+        return responseWrapper(body);
+    }
+
+    private ResponseEntity<String> responseWrapper(String body) {
+        if (body != null) {
+            return ResponseEntity.ok().header("Content-type", ContentType.APPLICATION_JSON.getMimeType()).body(body);
+        } else {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("File upload failed");
         }
-        return uploadBeeFile(tempFile);
     }
 
     @PostMapping("/upload")
     public ResponseEntity<String> uploadFile(@RequestParam("file") MultipartFile file) throws IOException {
-        if (switchLocal) {
-            return uploadLocalFile(file);
-        }
-        return uploadBeeFile(File.createTempFile("", file.getOriginalFilename()));
+        return uploadLocalFile(file);
     }
 
     public ResponseEntity<String> uploadLocalFile(MultipartFile file) throws IOException {
@@ -82,7 +90,12 @@ public class FileController {
                 .body(jsonObject.toJSONString());
     }
 
-    private ResponseEntity<String> uploadBeeFile(File tempFile) {
+
+    private String uploadBeeFile(String file) {
+        File tempFile = new File(localPath + file);
+        if (!tempFile.exists()) {
+            return null;
+        }
         HttpPost uploadFile = new HttpPost(BEE_URL);
         FileEntity fileEntity = new FileEntity(tempFile, ContentType.APPLICATION_OCTET_STREAM);
         uploadFile.setEntity(fileEntity);
@@ -91,22 +104,20 @@ public class FileController {
         try (CloseableHttpResponse response = httpClient.execute(uploadFile)) {
             HttpEntity entity = response.getEntity();
             if (response.getCode() == 200 || response.getCode() == 201) {
-                String body = EntityUtils.toString(entity);
                 //成功时删除
                 tempFile.delete();
-                return ResponseEntity.ok().header("Content-type", ContentType.APPLICATION_JSON.getMimeType()).body(body);
+                return EntityUtils.toString(entity);
             } else {
                 if (entity != null) {
                     logger.error("upload file failed.entity:{}", EntityUtils.toString(entity));
                 } else {
                     logger.error("upload file failed.response:{}", response);
                 }
-                return ResponseEntity.status(response.getCode()).body("File upload failed");
             }
         } catch (Exception e) {
             logger.error("upload file failed", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("File upload failed: " + e.getMessage());
         }
+        return null;
     }
 
     @GetMapping("/download/{reference}")

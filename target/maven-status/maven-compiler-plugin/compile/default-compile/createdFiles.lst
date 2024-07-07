@@ -1,2 +1,4 @@
+org\example\TemporaryStorage$ValueWrapper.class
+org\example\TemporaryStorage.class
 org\example\FileController.class
 org\example\FileApplication.class
