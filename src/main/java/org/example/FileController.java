@@ -92,6 +92,8 @@ public class FileController {
             HttpEntity entity = response.getEntity();
             if (response.getCode() == 200 || response.getCode() == 201) {
                 String body = EntityUtils.toString(entity);
+                //成功时删除
+                tempFile.delete();
                 return ResponseEntity.ok().header("Content-type", ContentType.APPLICATION_JSON.getMimeType()).body(body);
             } else {
                 if (entity != null) {
