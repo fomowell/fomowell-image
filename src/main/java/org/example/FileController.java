@@ -59,8 +59,9 @@ public class FileController {
 
     @PostMapping("/replace")
     public ResponseEntity<String> replaceFile(@RequestParam("file") String file) throws IOException {
-        String body = temporaryStorage.getValue(file, () -> uploadBeeFile(file));
-        logger.info(String.format("%s in,%s out", file,body));
+        final String finalFile = file.trim().replaceAll("\\n","");
+        String body = temporaryStorage.getValue(finalFile, () -> uploadBeeFile(finalFile));
+        System.out.printf("%s:::%s ", finalFile, body);
         return responseWrapper(body);
     }
 
