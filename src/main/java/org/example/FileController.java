@@ -81,6 +81,13 @@ public class FileController {
     public ResponseEntity<String> uploadLocalFile(MultipartFile file) throws IOException {
         byte[] bytes = file.getBytes();
         String md5= DigestUtils.md5Hex(bytes);
+        // 创建File对象
+        File directory = new File(localPath);
+        // 检查目录是否存在
+        if (!directory.exists()) {
+            // 目录不存在，创建目录
+            directory.mkdirs();
+        }
         Path path = Paths.get(localPath + md5);
         if(!path.toFile().exists()){
             Files.write(path,bytes);

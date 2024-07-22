@@ -13,8 +13,12 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
-
   <dependencies>
+    <dependency>
+      <groupId>org.roaringbitmap</groupId>
+      <artifactId>RoaringBitmap</artifactId>
+      <version>0.9.28</version>
+    </dependency>
     <!-- https://mvnrepository.com/artifact/com.github.rholder/guava-retrying -->
     <dependency>
       <groupId>com.github.rholder</groupId>
